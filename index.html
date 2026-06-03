@@ -7,7 +7,7 @@
 
     <!-- Leaflet CSS -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-    <!-- Google Font: Cinzel (elegáns, térképes hangulat) + Source Sans 3 (UI szöveg) -->
+    <!-- Cinzel (térképes elegancia) + Source Sans 3 (UI) -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600&family=Source+Sans+3:wght@400;600&display=swap" rel="stylesheet">
 
@@ -25,7 +25,6 @@
             font-family: 'Source Sans 3', sans-serif;
         }
 
-        /* Teljes képernyős térképtároló */
         #map {
             position: absolute;
             inset: 0;
@@ -33,7 +32,8 @@
         }
 
         /* =====================================================
-           FEJLÉC – bal felső sarok
+           FEJLÉC – bal felső sarok (pointer-events:none →
+           nem zavarja a térkép navigációját)
            ===================================================== */
         .map-title {
             position: absolute;
@@ -46,7 +46,7 @@
             border: 1px solid rgba(210, 175, 110, 0.35);
             border-radius: 6px;
             padding: 10px 16px;
-            pointer-events: none; /* ne zavarja a térképet */
+            pointer-events: none;
         }
 
         .map-title h1 {
@@ -67,8 +67,6 @@
 
         /* =====================================================
            ÁTLÁTSZÓSÁG-CSÚSZKA – bal alsó sarok
-           A legfontosabb fix: az eseménykezelő az onAdd()-ban
-           fut le, ahol az elem már létezik a DOM-ban.
            ===================================================== */
         .slider-container {
             background: rgba(20, 16, 10, 0.88);
@@ -104,7 +102,7 @@
             text-align: right;
         }
 
-        /* Range input stílus – cross-browser */
+        /* Range input – cross-browser */
         .opacity-slider {
             -webkit-appearance: none;
             appearance: none;
@@ -113,15 +111,14 @@
             border-radius: 2px;
             background: linear-gradient(
                 to right,
-                #c8a05a var(--pct, 50%),
-                rgba(255,255,255,0.12) var(--pct, 50%)
+                #c8a05a var(--pct, 75%),
+                rgba(255,255,255,0.12) var(--pct, 75%)
             );
             outline: none;
             cursor: pointer;
             display: block;
         }
 
-        /* Csúszka gomb – Webkit (Chrome, Safari, Edge) */
         .opacity-slider::-webkit-slider-thumb {
             -webkit-appearance: none;
             appearance: none;
@@ -141,7 +138,6 @@
             box-shadow: 0 0 0 4px rgba(210, 170, 106, 0.35);
         }
 
-        /* Csúszka gomb – Firefox */
         .opacity-slider::-moz-range-thumb {
             width: 18px;
             height: 18px;
@@ -153,8 +149,7 @@
         }
 
         /* =====================================================
-           LEAFLET RÉTEGKAPCSOLÓ – jobb felső sarok
-           Kis felülírás, hogy illeszkedjen a designhoz
+           LEAFLET KONTROLLOK TÉMA
            ===================================================== */
         .leaflet-control-layers {
             border: 1px solid rgba(210, 175, 110, 0.3) !important;
@@ -179,7 +174,6 @@
             border-top: 1px solid rgba(210, 175, 110, 0.2) !important;
         }
 
-        /* Attribúció szöveg kis felülírás */
         .leaflet-control-attribution {
             background: rgba(0,0,0,0.5) !important;
             color: rgba(255,255,255,0.55) !important;
@@ -191,12 +185,10 @@
         }
 
         /* =====================================================
-           RESZPONZÍV – mobilon kisebb csúszka
+           RESZPONZÍV
            ===================================================== */
         @media (max-width: 480px) {
-            .slider-container {
-                min-width: 170px;
-            }
+            .slider-container { min-width: 170px; }
             .map-title h1 { font-size: 11px; }
             .map-title p  { display: none; }
         }
@@ -204,18 +196,14 @@
 </head>
 <body>
 
-<!-- Teljes képernyős térképtároló -->
 <div id="map"></div>
 
-<!-- Fejléc szöveg (pointer-events:none, nem zavarja a térképet) -->
 <div class="map-title">
     <h1>I. Katonai Felmérés</h1>
-    <p>18. század · ELTE Lazarus · © Google Maps</p>
+    <p>18. század · Mapire / Arcanum · © Google Maps</p>
 </div>
 
-<!-- Leaflet JS -->
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-
 <script>
 // =============================================================
 // 1. TÉRKÉP INICIALIZÁLÁSA
@@ -228,7 +216,7 @@ var map = L.map('map', {
 });
 
 // =============================================================
-// 2. ALAPRÉTEG: Google Műholdkép
+// 2. ALAPRÉTEG: Google Műholdkép (XYZ tiles)
 // =============================================================
 var googleSatellite = L.tileLayer(
     'https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}',
@@ -239,37 +227,45 @@ var googleSatellite = L.tileLayer(
 ).addTo(map);
 
 // =============================================================
-// 3. TÖRTÉNELMI RÉTEG: I. Katonai Felmérés WMS
-// ELTE Lazarus szerver, 1kat layer, png, transzparens
+// 3. TÖRTÉNELMI RÉTEG: I. Katonai Felmérés
+//
+// MIÉRT NEM AZ ELTE WMS?
+// A lazarus.elte.hu WMS szerver CORS-fejléceket nem küld,
+// ezért böngészőből (GitHub Pages-ről) az összes kérést
+// blokkolja a Same-Origin Policy. Csak szerveroldali proxy-n
+// át lenne elérhető.
+//
+// MEGOLDÁS: Az Arcanum/Mapire nyilvános, CORS-kompatibilis
+// XYZ tile szerverét használjuk – ugyanaz az adatforrás,
+// de böngészőből közvetlenül elérhető, max zoom: 15.
+// Forrás: https://www.arcanum.com/en/mapire/wmts/
 // =============================================================
-var elsoKatonai = L.tileLayer.wms(
-    'https://lazarus.elte.hu/cgi-bin/mapserv?map=/home/mapserv/maps/1kat.map&',
+var elsoKatonai = L.tileLayer(
+    'https://tiles.mapire.eu/mercator/europe-18century-firstsurvey/{z}/{x}/{y}',
     {
-        layers: '1kat',
-        format: 'image/png',
-        transparent: true,
-        opacity: 0.75,   // induló 75% láthatóság
-        attribution: '&copy; ELTE Lazarus Térképtár – I. Katonai Felmérés'
+        attribution: '&copy; <a href="https://mapire.eu" target="_blank">Arcanum Mapire</a> – I. Katonai Felmérés',
+        maxZoom: 15,    // a szerver max felbontása
+        opacity: 0.75   // induló 75% láthatóság
     }
 ).addTo(map);
 
 // =============================================================
 // 4. ÁTLÁTSZÓSÁG-CSÚSZKA VEZÉRLŐ
-// *** KULCS FIX: az addEventListener az onAdd()-on BELÜL van,
-//     ahol a DOM elem már biztosan létezik! ***
+//
+// *** KULCS FIX AZ 1.0-hoz KÉPEST ***
+// Az addEventListener az onAdd() BELSEJÉBE kerül,
+// ahol a DOM elem már létezik. Az 1.0-ban a slider
+// keresése addTo() ELŐTT futott → null volt → csend.
 // =============================================================
 var sliderControl = L.control({ position: 'bottomleft' });
 
 sliderControl.onAdd = function(map) {
-    // Leaflet utility: div létrehozása a megadott CSS osztállyal
     var container = L.DomUtil.create('div', 'slider-container');
 
-    // Megakadályozzuk, hogy a csúszka húzása a térképet is elcsúsztassa,
-    // ill. a görgetés a térképet nagyítsa/kicsinyítse
+    // Megakadályozzuk a véletlen térkép-elhúzást és görgetést
     L.DomEvent.disableClickPropagation(container);
     L.DomEvent.disableScrollPropagation(container);
 
-    // Csúszka HTML sablon (induló érték: 75%)
     container.innerHTML = `
         <div class="slider-header">
             <span class="slider-label">Történelmi térkép</span>
@@ -284,22 +280,14 @@ sliderControl.onAdd = function(map) {
         >
     `;
 
-    // *** AZ ESEMÉNYKEZELŐ ITT, az onAdd-on BELÜL REGISZTRÁLÓDIK ***
-    // Ekkor a #opacity-range elem már a DOM részét képezi.
-    var slider = container.querySelector('#opacity-range');
+    // *** AZ ESEMÉNYKEZELŐ ITT, onAdd-on BELÜL ***
+    var slider    = container.querySelector('#opacity-range');
     var valueLabel = container.querySelector('#opacity-val');
 
     slider.addEventListener('input', function() {
-        var pct = this.value;                       // 0–100 közötti egész
-        var opacity = pct / 100;                    // 0.0–1.0 lebegőpontos
-
-        // Réteg átlátszóságának frissítése
-        elsoKatonai.setOpacity(opacity);
-
-        // Kijelző szöveg frissítése
+        var pct = this.value;
+        elsoKatonai.setOpacity(pct / 100);
         valueLabel.textContent = pct + '%';
-
-        // CSS custom property frissítése → gradient kitöltés a csúszkán
         this.style.setProperty('--pct', pct + '%');
     });
 
@@ -309,20 +297,14 @@ sliderControl.onAdd = function(map) {
 sliderControl.addTo(map);
 
 // =============================================================
-// 5. RÉTEGKAPCSOLÓ – jobb felső sarokban
-// Alaptérképek + overlay réteg ki/bekapcsoláshoz
+// 5. RÉTEGKAPCSOLÓ – jobb felső sarok
 // =============================================================
-var baseMaps = {
-    "🛰 Google Műhold": googleSatellite
-};
-
-var overlayMaps = {
-    "📜 I. Katonai Felmérés (18. sz.)": elsoKatonai
-};
+var baseMaps    = { "🛰 Google Műhold": googleSatellite };
+var overlayMaps = { "📜 I. Katonai Felmérés (18. sz.)": elsoKatonai };
 
 L.control.layers(baseMaps, overlayMaps, {
-    position: 'topright',
-    collapsed: false   // mindig látható panel
+    position:  'topright',
+    collapsed: false
 }).addTo(map);
 
 </script>
