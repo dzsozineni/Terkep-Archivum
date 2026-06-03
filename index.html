@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="hu">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Saját Arcanum Klón - I. Katonai Felmérés</title>
+    
+    <!-- Leaflet CSS és JS betöltése a térképhez -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+    <style>
+        /* Teljes képernyős térkép elrendezés */
+        html, body, #map {
+            height: 100%;
+            margin: 0;
+            padding: 0;
+            font-family: Arial, sans-serif;
+        }
+
+        /* Az átlátszóság-szabályozó csúszka doboza */
+        .slider-container {
+            background: white;
+            padding: 10px 15px;
+            border-radius: 8px;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+            font-size: 14px;
+            font-weight: bold;
+            color: #333;
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+
+        .slider-container input {
+            width: 150px;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+
+<div id="map"></div>
+
+<script>
+    // 1. TÉRKÉP INICIALIZÁLÁSA
+    // Beállítás közép-magyarországi kezdőpontra és 9-es zoom szintre
+    var map = L.map('map').setView([47.1, 19.5], 9);
+
+    // 2. ALAPRÉTEG: Google Műholdkép
+    var googleSatellite = L.tileLayer('https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}', {
+        attribution: '&copy; Google Maps',
+        maxZoom: 20
+    }).addTo(map);
+
+    // 3. TÖRTÉNELMI RÉTEG: I. Katonai Felmérés (18. század)
+    // Az ELTE nyilvános és georeferált WMS csempeszerverét használjuk forrásként
+    var elsoKatonaiFelmeres = L.tileLayer.wms('https://lazarus.elte.hu/cgi-bin/mapserv?map=/home/mapserv/maps/1kat.map&', {
+        layers: '1kat',
+        format: 'image/png',
+        transparent: true,
+        opacity: 0.5, // 50%-os induló átlátszóság
+        attribution: '&copy; ELTE Lazarus Térképtár / Arcanum minta'
+    }).addTo(map);
+
+    // 4. AZ ARCANUM-STÍLUSÚ CSÚSZKA LÉTREHOZÁSA
+    var sliderControl = L.control({ position: 'bottomleft' });
+
+    sliderControl.onAdd = function (map) {
+        var div = L.DomUtil.create('div', 'slider-container');
+        
+        // Letiltjuk, hogy a csúszka cibálásakor a háttérben lévő térkép is elmozduljon
+        L.DomEvent.disableClickPropagation(div);
+        L.DomEvent.disableScrollPropagation(div);
+
+        div.innerHTML = `
+            <label for="opacity-range">Történelmi térkép: <span id="opacity-val">50%</span></label>
+            <input type="range" id="opacity-range" min="0" max="100" value="50">
+        `;
+        return div;
+    };
+
+    sliderControl.addTo(map);
+
+    // 5. A CSÚSZKA MŰKÖDTETÉSE (Eseménykezelő)
+    var slider = document.getElementById('opacity-range');
+    var output = document.getElementById('opacity-val');
+
+    slider.addEventListener('input', function() {
+        var volume = this.value / 100;
+        elsoKatonaiFelmeres.setOpacity(volume); // Állítja a térképréteg átlátszóságát
+        output.innerHTML = this.value + "%";    // Kiírja az aktuális százalékot
+    });
+
+    // 6. RÉTEG-KAPCSOLÓ (Jobb felső sarok, ha teljesen ki akarod lőni valamelyiket)
+    var baseMaps = { "Google Műhold": googleSatellite };
+    var overlayMaps = { "I. Katonai Felmérés (18. sz.)": elsoKatonaiFelmeres };
+    L.control.layers(baseMaps, overlayMaps, { collapsed: false }).addTo(map);
+
+</script>
+
+</body>
+</html>
