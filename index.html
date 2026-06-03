@@ -3,101 +3,328 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Saját Arcanum Klón - I. Katonai Felmérés</title>
-    
-    <!-- Leaflet CSS és JS betöltése a térképhez -->
+    <title>I. Katonai Felmérés – Történelmi Térkép</title>
+
+    <!-- Leaflet CSS -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <!-- Google Font: Cinzel (elegáns, térképes hangulat) + Source Sans 3 (UI szöveg) -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600&family=Source+Sans+3:wght@400;600&display=swap" rel="stylesheet">
 
     <style>
-        /* Teljes képernyős térkép elrendezés */
-        html, body, #map {
+        /* =====================================================
+           ALAP ELRENDEZÉS
+           ===================================================== */
+        *, *::before, *::after { box-sizing: border-box; }
+
+        html, body {
             height: 100%;
             margin: 0;
             padding: 0;
-            font-family: Arial, sans-serif;
+            background: #1a1a1a;
+            font-family: 'Source Sans 3', sans-serif;
         }
 
-        /* Az átlátszóság-szabályozó csúszka doboza */
+        /* Teljes képernyős térképtároló */
+        #map {
+            position: absolute;
+            inset: 0;
+            z-index: 0;
+        }
+
+        /* =====================================================
+           FEJLÉC – bal felső sarok
+           ===================================================== */
+        .map-title {
+            position: absolute;
+            top: 16px;
+            left: 16px;
+            z-index: 1000;
+            background: rgba(20, 16, 10, 0.82);
+            backdrop-filter: blur(6px);
+            -webkit-backdrop-filter: blur(6px);
+            border: 1px solid rgba(210, 175, 110, 0.35);
+            border-radius: 6px;
+            padding: 10px 16px;
+            pointer-events: none; /* ne zavarja a térképet */
+        }
+
+        .map-title h1 {
+            font-family: 'Cinzel', serif;
+            font-size: 13px;
+            letter-spacing: 0.08em;
+            color: #d4aa6a;
+            margin: 0 0 2px 0;
+            line-height: 1.2;
+        }
+
+        .map-title p {
+            font-size: 11px;
+            color: rgba(220, 200, 160, 0.65);
+            margin: 0;
+            letter-spacing: 0.04em;
+        }
+
+        /* =====================================================
+           ÁTLÁTSZÓSÁG-CSÚSZKA – bal alsó sarok
+           A legfontosabb fix: az eseménykezelő az onAdd()-ban
+           fut le, ahol az elem már létezik a DOM-ban.
+           ===================================================== */
         .slider-container {
-            background: white;
-            padding: 10px 15px;
+            background: rgba(20, 16, 10, 0.88);
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+            border: 1px solid rgba(210, 175, 110, 0.3);
             border-radius: 8px;
-            box-shadow: 0 2px 6px rgba(0,0,0,0.3);
-            font-size: 14px;
-            font-weight: bold;
-            color: #333;
-            display: flex;
-            flex-direction: column;
-            gap: 5px;
+            padding: 12px 16px 14px;
+            min-width: 210px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.45);
         }
 
-        .slider-container input {
-            width: 150px;
+        .slider-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: baseline;
+            margin-bottom: 10px;
+        }
+
+        .slider-label {
+            font-family: 'Cinzel', serif;
+            font-size: 11px;
+            letter-spacing: 0.07em;
+            color: #c8a05a;
+            text-transform: uppercase;
+        }
+
+        .slider-value {
+            font-size: 13px;
+            font-weight: 600;
+            color: #e8cfa0;
+            min-width: 36px;
+            text-align: right;
+        }
+
+        /* Range input stílus – cross-browser */
+        .opacity-slider {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 100%;
+            height: 4px;
+            border-radius: 2px;
+            background: linear-gradient(
+                to right,
+                #c8a05a var(--pct, 50%),
+                rgba(255,255,255,0.12) var(--pct, 50%)
+            );
+            outline: none;
             cursor: pointer;
+            display: block;
+        }
+
+        /* Csúszka gomb – Webkit (Chrome, Safari, Edge) */
+        .opacity-slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            background: #d4aa6a;
+            border: 2px solid #1a1a1a;
+            box-shadow: 0 0 0 2px rgba(210, 170, 106, 0.5);
+            cursor: grab;
+            transition: transform 0.12s ease, box-shadow 0.12s ease;
+        }
+
+        .opacity-slider::-webkit-slider-thumb:active {
+            cursor: grabbing;
+            transform: scale(1.15);
+            box-shadow: 0 0 0 4px rgba(210, 170, 106, 0.35);
+        }
+
+        /* Csúszka gomb – Firefox */
+        .opacity-slider::-moz-range-thumb {
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            background: #d4aa6a;
+            border: 2px solid #1a1a1a;
+            box-shadow: 0 0 0 2px rgba(210, 170, 106, 0.5);
+            cursor: grab;
+        }
+
+        /* =====================================================
+           LEAFLET RÉTEGKAPCSOLÓ – jobb felső sarok
+           Kis felülírás, hogy illeszkedjen a designhoz
+           ===================================================== */
+        .leaflet-control-layers {
+            border: 1px solid rgba(210, 175, 110, 0.3) !important;
+            border-radius: 6px !important;
+            background: rgba(20, 16, 10, 0.88) !important;
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+            color: #e8cfa0 !important;
+            box-shadow: 0 4px 16px rgba(0,0,0,0.4) !important;
+        }
+
+        .leaflet-control-layers-expanded {
+            padding: 10px 14px !important;
+        }
+
+        .leaflet-control-layers label {
+            color: #d4c090 !important;
+            font-size: 13px;
+        }
+
+        .leaflet-control-layers-separator {
+            border-top: 1px solid rgba(210, 175, 110, 0.2) !important;
+        }
+
+        /* Attribúció szöveg kis felülírás */
+        .leaflet-control-attribution {
+            background: rgba(0,0,0,0.5) !important;
+            color: rgba(255,255,255,0.55) !important;
+            font-size: 10px !important;
+        }
+
+        .leaflet-control-attribution a {
+            color: rgba(210,175,110,0.7) !important;
+        }
+
+        /* =====================================================
+           RESZPONZÍV – mobilon kisebb csúszka
+           ===================================================== */
+        @media (max-width: 480px) {
+            .slider-container {
+                min-width: 170px;
+            }
+            .map-title h1 { font-size: 11px; }
+            .map-title p  { display: none; }
         }
     </style>
 </head>
 <body>
 
+<!-- Teljes képernyős térképtároló -->
 <div id="map"></div>
 
-<script>
-    // 1. TÉRKÉP INICIALIZÁLÁSA
-    // Beállítás közép-magyarországi kezdőpontra és 9-es zoom szintre
-    var map = L.map('map').setView([47.1, 19.5], 9);
+<!-- Fejléc szöveg (pointer-events:none, nem zavarja a térképet) -->
+<div class="map-title">
+    <h1>I. Katonai Felmérés</h1>
+    <p>18. század · ELTE Lazarus · © Google Maps</p>
+</div>
 
-    // 2. ALAPRÉTEG: Google Műholdkép
-    var googleSatellite = L.tileLayer('https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}', {
+<!-- Leaflet JS -->
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+<script>
+// =============================================================
+// 1. TÉRKÉP INICIALIZÁLÁSA
+// Középpont: Magyarország közepe, zoom: 9
+// =============================================================
+var map = L.map('map', {
+    center: [47.1, 19.5],
+    zoom: 9,
+    zoomControl: true
+});
+
+// =============================================================
+// 2. ALAPRÉTEG: Google Műholdkép
+// =============================================================
+var googleSatellite = L.tileLayer(
+    'https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}',
+    {
         attribution: '&copy; Google Maps',
         maxZoom: 20
-    }).addTo(map);
+    }
+).addTo(map);
 
-    // 3. TÖRTÉNELMI RÉTEG: I. Katonai Felmérés (18. század)
-    // Az ELTE nyilvános és georeferált WMS csempeszerverét használjuk forrásként
-    var elsoKatonaiFelmeres = L.tileLayer.wms('https://lazarus.elte.hu/cgi-bin/mapserv?map=/home/mapserv/maps/1kat.map&', {
+// =============================================================
+// 3. TÖRTÉNELMI RÉTEG: I. Katonai Felmérés WMS
+// ELTE Lazarus szerver, 1kat layer, png, transzparens
+// =============================================================
+var elsoKatonai = L.tileLayer.wms(
+    'https://lazarus.elte.hu/cgi-bin/mapserv?map=/home/mapserv/maps/1kat.map&',
+    {
         layers: '1kat',
         format: 'image/png',
         transparent: true,
-        opacity: 0.5, // 50%-os induló átlátszóság
-        attribution: '&copy; ELTE Lazarus Térképtár / Arcanum minta'
-    }).addTo(map);
+        opacity: 0.75,   // induló 75% láthatóság
+        attribution: '&copy; ELTE Lazarus Térképtár – I. Katonai Felmérés'
+    }
+).addTo(map);
 
-    // 4. AZ ARCANUM-STÍLUSÚ CSÚSZKA LÉTREHOZÁSA
-    var sliderControl = L.control({ position: 'bottomleft' });
+// =============================================================
+// 4. ÁTLÁTSZÓSÁG-CSÚSZKA VEZÉRLŐ
+// *** KULCS FIX: az addEventListener az onAdd()-on BELÜL van,
+//     ahol a DOM elem már biztosan létezik! ***
+// =============================================================
+var sliderControl = L.control({ position: 'bottomleft' });
 
-    sliderControl.onAdd = function (map) {
-        var div = L.DomUtil.create('div', 'slider-container');
-        
-        // Letiltjuk, hogy a csúszka cibálásakor a háttérben lévő térkép is elmozduljon
-        L.DomEvent.disableClickPropagation(div);
-        L.DomEvent.disableScrollPropagation(div);
+sliderControl.onAdd = function(map) {
+    // Leaflet utility: div létrehozása a megadott CSS osztállyal
+    var container = L.DomUtil.create('div', 'slider-container');
 
-        div.innerHTML = `
-            <label for="opacity-range">Történelmi térkép: <span id="opacity-val">50%</span></label>
-            <input type="range" id="opacity-range" min="0" max="100" value="50">
-        `;
-        return div;
-    };
+    // Megakadályozzuk, hogy a csúszka húzása a térképet is elcsúsztassa,
+    // ill. a görgetés a térképet nagyítsa/kicsinyítse
+    L.DomEvent.disableClickPropagation(container);
+    L.DomEvent.disableScrollPropagation(container);
 
-    sliderControl.addTo(map);
+    // Csúszka HTML sablon (induló érték: 75%)
+    container.innerHTML = `
+        <div class="slider-header">
+            <span class="slider-label">Történelmi térkép</span>
+            <span class="slider-value" id="opacity-val">75%</span>
+        </div>
+        <input
+            type="range"
+            class="opacity-slider"
+            id="opacity-range"
+            min="0" max="100" value="75"
+            style="--pct: 75%"
+        >
+    `;
 
-    // 5. A CSÚSZKA MŰKÖDTETÉSE (Eseménykezelő)
-    var slider = document.getElementById('opacity-range');
-    var output = document.getElementById('opacity-val');
+    // *** AZ ESEMÉNYKEZELŐ ITT, az onAdd-on BELÜL REGISZTRÁLÓDIK ***
+    // Ekkor a #opacity-range elem már a DOM részét képezi.
+    var slider = container.querySelector('#opacity-range');
+    var valueLabel = container.querySelector('#opacity-val');
 
     slider.addEventListener('input', function() {
-        var volume = this.value / 100;
-        elsoKatonaiFelmeres.setOpacity(volume); // Állítja a térképréteg átlátszóságát
-        output.innerHTML = this.value + "%";    // Kiírja az aktuális százalékot
+        var pct = this.value;                       // 0–100 közötti egész
+        var opacity = pct / 100;                    // 0.0–1.0 lebegőpontos
+
+        // Réteg átlátszóságának frissítése
+        elsoKatonai.setOpacity(opacity);
+
+        // Kijelző szöveg frissítése
+        valueLabel.textContent = pct + '%';
+
+        // CSS custom property frissítése → gradient kitöltés a csúszkán
+        this.style.setProperty('--pct', pct + '%');
     });
 
-    // 6. RÉTEG-KAPCSOLÓ (Jobb felső sarok, ha teljesen ki akarod lőni valamelyiket)
-    var baseMaps = { "Google Műhold": googleSatellite };
-    var overlayMaps = { "I. Katonai Felmérés (18. sz.)": elsoKatonaiFelmeres };
-    L.control.layers(baseMaps, overlayMaps, { collapsed: false }).addTo(map);
+    return container;
+};
+
+sliderControl.addTo(map);
+
+// =============================================================
+// 5. RÉTEGKAPCSOLÓ – jobb felső sarokban
+// Alaptérképek + overlay réteg ki/bekapcsoláshoz
+// =============================================================
+var baseMaps = {
+    "🛰 Google Műhold": googleSatellite
+};
+
+var overlayMaps = {
+    "📜 I. Katonai Felmérés (18. sz.)": elsoKatonai
+};
+
+L.control.layers(baseMaps, overlayMaps, {
+    position: 'topright',
+    collapsed: false   // mindig látható panel
+}).addTo(map);
 
 </script>
-
 </body>
 </html>
